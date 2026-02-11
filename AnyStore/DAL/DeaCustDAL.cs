@@ -13,14 +13,30 @@ namespace AnyStore.DAL
 {
     class DeaCustDAL
     {
-        //Static String Method for Database Connection
-        static string myconnstrng = ConfigurationManager.ConnectionStrings["connstrng"].ConnectionString;
+        //Cloud-ready connection string - Get from environment variable or configuration
+        private string GetConnectionString()
+        {
+            // Priority: Environment variable > App.config connection string
+            string envConnString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+            if (!string.IsNullOrEmpty(envConnString))
+            {
+                return envConnString;
+            }
+
+            string configConnString = ConfigurationManager.ConnectionStrings["connstrng"]?.ConnectionString;
+            if (!string.IsNullOrEmpty(configConnString))
+            {
+                return configConnString;
+            }
+
+            throw new InvalidOperationException("Database connection string not configured. Set DB_CONNECTION_STRING environment variable.");
+        }
 
         #region SELECT MEthod for Dealer and Customer
         public DataTable Select()
         {
             //SQL Connection for Database Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //DataTble to hold the value from database and return it
             DataTable dt = new DataTable();
@@ -43,7 +59,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -57,7 +74,7 @@ namespace AnyStore.DAL
         public bool Insert(DeaCustBLL dc)
         {
             //Creting SQL Connection First
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Create and Boolean value and set its default value to false
             bool isSuccess = false;
@@ -98,7 +115,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -112,7 +130,7 @@ namespace AnyStore.DAL
         public bool Update(DeaCustBLL dc)
         {
             //SQL Connection for Database Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
             //Create Boolean variable and set its default value to false
             bool isSuccess = false;
 
@@ -151,7 +169,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -165,7 +184,7 @@ namespace AnyStore.DAL
         public bool Delete(DeaCustBLL dc)
         {
             //SQlConnection for Database Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Create a Boolean Variable and set its default value to false
             bool isSuccess = false;
@@ -197,7 +216,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -211,18 +231,19 @@ namespace AnyStore.DAL
         public DataTable Search(string keyword)
         {
             //Create a Sql Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Creating a Data TAble and returnign its value
             DataTable dt = new DataTable();
 
             try
             {
-                //Write the Query to Search Dealer or Customer Based in id, type and name
-                string sql = "SELECT * FROM tbl_dea_cust WHERE id LIKE '%"+keyword+"%' OR type LIKE '%"+keyword+"%' OR name LIKE '%"+keyword+"%'";
+                //Write the Query to Search Dealer or Customer Based in id, type and name - FIXED: Parameterized query to prevent SQL injection
+                string sql = "SELECT * FROM tbl_dea_cust WHERE id LIKE @keyword OR type LIKE @keyword OR name LIKE @keyword";
 
                 //Sql Command to Execute the Query
                 SqlCommand cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@keyword", "%" + keyword + "%");
                 //Sql Dat Adapeter to hold tthe data from dataase temporarily
                 SqlDataAdapter adapter = new SqlDataAdapter(cmd);
 
@@ -233,7 +254,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -250,18 +272,20 @@ namespace AnyStore.DAL
             DeaCustBLL dc = new DeaCustBLL();
 
             //Create a DAtabase Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Create a DAta Table to hold the value temporarily
             DataTable dt = new DataTable();
 
             try
             {
-                //Write a SQL Query to Search Dealer or Customer Based on Keywords
-                string sql = "SELECT name, email, contact, address from tbl_dea_cust WHERE id LIKE '%"+keyword+"%' OR name LIKE '%"+keyword+"%'";
+                //Write a SQL Query to Search Dealer or Customer Based on Keywords - FIXED: Parameterized query to prevent SQL injection
+                string sql = "SELECT name, email, contact, address from tbl_dea_cust WHERE id LIKE @keyword OR name LIKE @keyword";
 
                 //Create a Sql Data Adapter to Execute the Query
-                SqlDataAdapter adapter = new SqlDataAdapter(sql, conn);
+                SqlCommand cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@keyword", "%" + keyword + "%");
+                SqlDataAdapter adapter = new SqlDataAdapter(cmd);
 
                 //Open the DAtabase Connection
                 conn.Open();
@@ -281,7 +305,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -299,16 +324,18 @@ namespace AnyStore.DAL
             DeaCustBLL dc = new DeaCustBLL();
 
             //SQL Conection here
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
             //Data TAble to Holdthe data temporarily
             DataTable dt = new DataTable();
 
             try
             {
-                //SQL Query to Get id based on Name
-                string sql = "SELECT id FROM tbl_dea_cust WHERE name='"+Name+"'";
+                //SQL Query to Get id based on Name - FIXED: Parameterized query to prevent SQL injection
+                string sql = "SELECT id FROM tbl_dea_cust WHERE name=@Name";
                 //Create the SQL Data Adapter to Execute the Query
-                SqlDataAdapter adapter = new SqlDataAdapter(sql, conn);
+                SqlCommand cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@Name", Name);
+                SqlDataAdapter adapter = new SqlDataAdapter(cmd);
 
                 conn.Open();
 
@@ -322,7 +349,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {

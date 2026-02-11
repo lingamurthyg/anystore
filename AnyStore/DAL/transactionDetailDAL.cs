@@ -12,8 +12,24 @@ namespace AnyStore.DAL
 {
     class transactionDetailDAL
     {
-        //Create Connection String
-        static string myconnstrng = ConfigurationManager.ConnectionStrings["connstrng"].ConnectionString;
+        //Cloud-ready connection string - Get from environment variable or configuration
+        private string GetConnectionString()
+        {
+            // Priority: Environment variable > App.config connection string
+            string envConnString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+            if (!string.IsNullOrEmpty(envConnString))
+            {
+                return envConnString;
+            }
+
+            string configConnString = ConfigurationManager.ConnectionStrings["connstrng"]?.ConnectionString;
+            if (!string.IsNullOrEmpty(configConnString))
+            {
+                return configConnString;
+            }
+
+            throw new InvalidOperationException("Database connection string not configured. Set DB_CONNECTION_STRING environment variable.");
+        }
 
         #region Insert Method for Transaction Detail
         public bool InsertTransactionDetail(transactionDetailBLL td)
@@ -22,7 +38,7 @@ namespace AnyStore.DAL
             bool isSuccess = false;
 
             //Create a database connection here
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             try
             {
@@ -59,7 +75,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {

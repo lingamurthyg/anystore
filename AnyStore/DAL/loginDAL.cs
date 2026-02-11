@@ -13,16 +13,32 @@ namespace AnyStore.DAL
 {
     class loginDAL
     {
-        //Static String to Connect Database
-        static string myconnstrng = ConfigurationManager.ConnectionStrings["connstrng"].ConnectionString;
+        //Cloud-ready connection string - Get from environment variable or configuration
+        private string GetConnectionString()
+        {
+            // Priority: Environment variable > App.config connection string
+            string envConnString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+            if (!string.IsNullOrEmpty(envConnString))
+            {
+                return envConnString;
+            }
+
+            string configConnString = ConfigurationManager.ConnectionStrings["connstrng"]?.ConnectionString;
+            if (!string.IsNullOrEmpty(configConnString))
+            {
+                return configConnString;
+            }
+
+            throw new InvalidOperationException("Database connection string not configured. Set DB_CONNECTION_STRING environment variable.");
+        }
 
         public bool loginCheck(loginBLL l)
         {
             //Create a boolean variable and set its value to false and return it
             bool isSuccess = false;
 
-            //Connecting To DAtabase
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            //Connecting To Database
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             try
             {
@@ -56,7 +72,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {

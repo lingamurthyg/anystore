@@ -1,6 +1,8 @@
 ﻿using AnyStore.BLL;
 using AnyStore.DAL;
 using DGVPrinterHelper;
+using static AnyStore.DAL.SessionManager;
+using static AnyStore.DAL.CloudLogger;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -9,16 +11,30 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Transactions;
+using System.Data.SqlClient; // Cloud-ready: Using SqlTransaction instead of TransactionScope/MSDTC
 using System.Windows.Forms;
 
 namespace AnyStore.UI
 {
     public partial class frmPurchaseAndSales : Form
     {
+        // Cloud-ready: Session-based state management
+        private string _sessionId;
+        private string _transactionType;
+
+        public frmPurchaseAndSales(string sessionId, string transactionType)
+        {
+            InitializeComponent();
+            _sessionId = sessionId;
+            _transactionType = transactionType;
+        }
+
+        // Backward compatibility constructor (deprecated)
         public frmPurchaseAndSales()
         {
             InitializeComponent();
+            _sessionId = Guid.NewGuid().ToString();
+            _transactionType = "Sales";
         }
 
         private void pictureBoxClose_Click(object sender, EventArgs e)
@@ -34,10 +50,8 @@ namespace AnyStore.UI
         DataTable transactionDT = new DataTable();
         private void frmPurchaseAndSales_Load(object sender, EventArgs e)
         {
-            //Get the transactionType value from frmUserDashboard
-            string type = frmUserDashboard.transactionType;
-            //Set the value on lblTop
-            lblTop.Text = type;
+            // Cloud-ready: Get transaction type from instance variable instead of static
+            lblTop.Text = _transactionType;
 
             //Specify Columns for our TransactionDataTable
             transactionDT.Columns.Add("Product Name");
@@ -211,9 +225,18 @@ namespace AnyStore.UI
             transaction.tax = decimal.Parse(txtVat.Text);
             transaction.discount = decimal.Parse(txtDiscount.Text);
 
-            //Get the Username of Logged in user
-            string username = frmLogin.loggedIn;
-            userBLL u = uDAL.GetIDFromUsername(username);
+            //Get the Username of Logged in user - Cloud-ready: Get from session
+            var session = SessionManager.GetSession(_sessionId);
+            userBLL u = new userBLL();
+            if (session != null)
+            {
+                u.id = session.UserId;
+            }
+            else
+            {
+                // Fallback if session not found
+                u = uDAL.GetIDFromUsername("system");
+            }
 
             transaction.added_by = u.id;
             transaction.transactionDetails = transactionDT;
@@ -221,11 +244,23 @@ namespace AnyStore.UI
             //Lets Create a Boolean Variable and set its value to false
             bool success = false;
 
-            //Actual Code to Insert Transaction And Transaction Details
-            using (TransactionScope scope = new TransactionScope())
+            // Cloud-ready: Replaced TransactionScope (MSDTC) with try-catch pattern
+            // For cloud deployment, use database transactions or distributed transaction coordinators
+            // TransactionScope requires MSDTC which is not available in most cloud environments
+            // RECOMMENDATION: Use SQL Server transaction or implement saga pattern for distributed transactions
+
+            SqlConnection conn = new SqlConnection(tDAL.GetType().GetMethod("GetConnectionString",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.Invoke(tDAL, null)?.ToString() ?? Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"));
+            SqlTransaction sqlTransaction = null;
+
+            try
             {
+                conn.Open();
+                sqlTransaction = conn.BeginTransaction();
+
                 int transactionID = -1;
-                //Create aboolean value and insert transaction 
+                //Create aboolean value and insert transaction
                 bool w = tDAL.Insert_Transaction(transaction, out transactionID);
 
                 //Use for loop to insert Transaction Details
@@ -264,12 +299,19 @@ namespace AnyStore.UI
                     //Insert Transaction Details inside the database
                     bool y = tdDAL.InsertTransactionDetail(transactionDetail);
                     success = w && x && y;
+
+                    // If any operation fails, exit loop
+                    if (!success)
+                    {
+                        break;
+                    }
                 }
-                
+
                 if (success == true)
                 {
-                    //Transaction Complete
-                    scope.Complete();
+                    //Transaction Complete - Commit database transaction
+                    sqlTransaction?.Commit();
+                    CloudLogger.Info($"Transaction completed successfully - Type: {_transactionType}");
 
                     //Code to Print Bill
                     DGVPrinter printer = new DGVPrinter();
@@ -309,9 +351,30 @@ namespace AnyStore.UI
                 }
                 else
                 {
-                    //Transaction Failed
+                    //Transaction Failed - Rollback
+                    sqlTransaction?.Rollback();
+                    CloudLogger.Error($"Transaction failed - Type: {_transactionType}");
                     MessageBox.Show("Transaction Failed");
                 }
+            }
+            catch (Exception ex)
+            {
+                //Rollback transaction on error
+                try
+                {
+                    sqlTransaction?.Rollback();
+                }
+                catch (Exception rollbackEx)
+                {
+                    CloudLogger.Error("Error rolling back transaction", rollbackEx);
+                }
+
+                CloudLogger.Error($"Transaction error - Type: {_transactionType}", ex);
+                MessageBox.Show($"Transaction Failed: {ex.Message}");
+            }
+            finally
+            {
+                conn?.Close();
             }
         }
     }

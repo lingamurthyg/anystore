@@ -13,8 +13,24 @@ namespace AnyStore.DAL
 {
     class transactionDAL
     {
-        //Create a connection string variable
-        static string myconnstrng = ConfigurationManager.ConnectionStrings["connstrng"].ConnectionString;
+        //Cloud-ready connection string - Get from environment variable or configuration
+        private string GetConnectionString()
+        {
+            // Priority: Environment variable > App.config connection string
+            string envConnString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+            if (!string.IsNullOrEmpty(envConnString))
+            {
+                return envConnString;
+            }
+
+            string configConnString = ConfigurationManager.ConnectionStrings["connstrng"]?.ConnectionString;
+            if (!string.IsNullOrEmpty(configConnString))
+            {
+                return configConnString;
+            }
+
+            throw new InvalidOperationException("Database connection string not configured. Set DB_CONNECTION_STRING environment variable.");
+        }
 
         #region Insert Transaction Method
         public bool Insert_Transaction(transactionsBLL t, out int transactionID)
@@ -24,7 +40,7 @@ namespace AnyStore.DAL
             //Set the out transactionID value to negative 1 i.e. -1
             transactionID = -1;
             //Create a SqlConnection first
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
             try
             {
                 //SQL Query to Insert Transactions
@@ -63,7 +79,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox for cloud monitoring
+                CloudLogger.Error($"Database operation failed", ex);
             }
             finally
             {
@@ -78,7 +95,7 @@ namespace AnyStore.DAL
         public DataTable DisplayAllTransactions()
         {
             //SQlConnection First
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Create a DAta Table to hold the datafrom database temporarily
             DataTable dt = new DataTable();
@@ -101,7 +118,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox for cloud monitoring
+                CloudLogger.Error($"Database operation failed", ex);
             }
             finally
             {
@@ -115,18 +133,19 @@ namespace AnyStore.DAL
         public DataTable DisplayTransactionByType(string type)
         {
             //Create SQL Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Create a DataTable
             DataTable dt = new DataTable();
 
             try
             {
-                //Write SQL Query
-                string sql = "SELECT * FROM tbl_transactions WHERE type='"+type+"'";
+                //Write SQL Query - FIXED: Parameterized query to prevent SQL injection
+                string sql = "SELECT * FROM tbl_transactions WHERE type=@type";
 
                 //SQL Command to Execute Query
                 SqlCommand cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@type", type);
                 //SQlDataAdapter to hold the data from database
                 SqlDataAdapter adapter = new SqlDataAdapter(cmd);
 
@@ -136,7 +155,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox for cloud monitoring
+                CloudLogger.Error($"Database operation failed", ex);
             }
             finally
             {

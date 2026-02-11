@@ -13,14 +13,30 @@ namespace AnyStore.DAL
 {
     class categoriesDAL
     {
-        //Static String Method for Database Connection String
-        static string myconnstrng = ConfigurationManager.ConnectionStrings["connstrng"].ConnectionString;
+        //Cloud-ready connection string - Get from environment variable or configuration
+        private string GetConnectionString()
+        {
+            // Priority: Environment variable > App.config connection string
+            string envConnString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+            if (!string.IsNullOrEmpty(envConnString))
+            {
+                return envConnString;
+            }
+
+            string configConnString = ConfigurationManager.ConnectionStrings["connstrng"]?.ConnectionString;
+            if (!string.IsNullOrEmpty(configConnString))
+            {
+                return configConnString;
+            }
+
+            throw new InvalidOperationException("Database connection string not configured. Set DB_CONNECTION_STRING environment variable.");
+        }
 
         #region Select Method
         public DataTable Select()
         {
             //Creating Database Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             DataTable dt = new DataTable();
 
@@ -39,7 +55,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -56,7 +73,7 @@ namespace AnyStore.DAL
             bool isSucces = false;
 
             //Connecting to Database
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             try
             {
@@ -92,7 +109,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -110,7 +128,7 @@ namespace AnyStore.DAL
             bool isSuccess = false;
 
             //Creating SQL Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             try
             {
@@ -147,7 +165,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -163,7 +182,7 @@ namespace AnyStore.DAL
             //Create a Boolean variable and set its value to false
             bool isSuccess = false;
 
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             try
             {
@@ -194,7 +213,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {
@@ -208,17 +228,18 @@ namespace AnyStore.DAL
         public DataTable Search(string keywords)
         {
             //SQL Connection For Database Connection
-            SqlConnection conn = new SqlConnection(myconnstrng);
+            SqlConnection conn = new SqlConnection(GetConnectionString());
 
             //Creating Data TAble to hold the data from database temporarily
             DataTable dt = new DataTable();
 
             try
             {
-                //SQL Query To Search Categories from DAtabase
-                String sql = "SELECT * FROM tbl_categories WHERE id LIKE '%"+keywords+"%' OR title LIKE '%"+keywords+"%' OR description LIKE '%"+keywords+"%'";
+                //SQL Query To Search Categories from Database - FIXED: Parameterized query to prevent SQL injection
+                String sql = "SELECT * FROM tbl_categories WHERE id LIKE @keywords OR title LIKE @keywords OR description LIKE @keywords";
                 //Creating SQL Command to Execute the Query
                 SqlCommand cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@keywords", "%" + keywords + "%");
 
                 //Getting DAta From DAtabase
                 SqlDataAdapter adapter = new SqlDataAdapter(cmd);
@@ -230,7 +251,8 @@ namespace AnyStore.DAL
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                // Cloud-ready: Log to Console instead of MessageBox
+                CloudLogger.Error("Database operation failed", ex);
             }
             finally
             {

@@ -146,20 +146,22 @@ namespace DGVPrinterHelper //AllocationRequest
         /// <param name="name"></param>
         public static void Write(String from, LogManager.Categories category, String msg, String path, String name)
         {
+            // Cloud-ready: Output to Console instead of file system for cloud logging (CloudWatch, Application Insights)
             StringBuilder line = new StringBuilder();
-            line.Append(DateTime.Now.ToShortDateString().ToString());
-            line.Append("-");
-            line.Append(DateTime.Now.ToLongTimeString().ToString());
+            line.Append(DateTime.UtcNow.ToString("o")); // ISO 8601 format
             line.Append(", ");
             line.Append(category.ToString().PadRight(6, ' '));
-            line.Append(",");
+            line.Append(", ");
             line.Append(from.PadRight(13, ' '));
-            line.Append(",");
+            line.Append(", ");
             line.Append(msg);
-            StreamWriter w = new StreamWriter(path + "\\" + LogFileName(name), true);
-            w.WriteLine(line.ToString());
-            w.Flush();
-            w.Close();
+
+            // Write to Console (captured by cloud logging systems)
+            Console.WriteLine(line.ToString());
+
+            // DEPRECATED: File-based logging removed for cloud compatibility
+            // In cloud environments, use CloudWatch Logs (AWS), Application Insights (Azure), or Cloud Logging (GCP)
+            // If file logging is required, use S3, Azure Blob Storage, or GCS instead of local file system
         }
     }
 

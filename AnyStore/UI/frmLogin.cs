@@ -1,5 +1,6 @@
 ﻿using AnyStore.BLL;
 using AnyStore.DAL;
+using static AnyStore.DAL.SessionManager;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -21,7 +22,10 @@ namespace AnyStore.UI
 
         loginBLL l = new loginBLL();
         loginDAL dal = new loginDAL();
-        public static string loggedIn;
+
+        // Cloud-ready: Replaced static variable with session-based state management
+        // Session ID stored per form instance instead of global static state
+        private string _sessionId = Guid.NewGuid().ToString();
 
         private void pboxClose_Click(object sender, EventArgs e)
         {
@@ -39,16 +43,22 @@ namespace AnyStore.UI
             bool sucess = dal.loginCheck(l);
             if(sucess==true)
             {
-                //Login Successfull
+                //Login Successful - Cloud-ready: Store session data instead of static variable
                 MessageBox.Show("Login Successful.");
-                loggedIn = l.username;
+
+                // Get user ID from DAL
+                userDAL uDAL = new userDAL();
+                userBLL user = uDAL.GetIDFromUsername(l.username);
+
+                // Create session in session manager
+                SessionManager.CreateSession(_sessionId, l.username, l.user_type, user.id);
                 //Need to open Respective Forms based on User Type
                 switch(l.user_type)
                 {
                     case "Admin":
                         {
-                            //Display Admin Dashboard
-                            frmAdminDashboard admin = new frmAdminDashboard();
+                            //Display Admin Dashboard - Pass session ID
+                            frmAdminDashboard admin = new frmAdminDashboard(_sessionId);
                             admin.Show();
                             this.Hide();
                         }
@@ -56,9 +66,9 @@ namespace AnyStore.UI
 
                     case "User":
                         {
-                            //Display User Dashboard
-                            frmUserDashboard user = new frmUserDashboard();
-                            user.Show();
+                            //Display User Dashboard - Pass session ID
+                            frmUserDashboard userDashboard = new frmUserDashboard(_sessionId);
+                            userDashboard.Show();
                             this.Hide();
                         }
                         break;

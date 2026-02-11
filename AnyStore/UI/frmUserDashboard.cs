@@ -1,4 +1,6 @@
 ﻿using AnyStore.UI;
+using AnyStore.DAL;
+using static AnyStore.DAL.SessionManager;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -13,13 +15,22 @@ namespace AnyStore
 {
     public partial class frmUserDashboard : Form
     {
+        // Cloud-ready: Session-based state management instead of static variables
+        private string _sessionId;
+        private string _transactionType;
+
+        public frmUserDashboard(string sessionId)
+        {
+            InitializeComponent();
+            _sessionId = sessionId;
+        }
+
+        // Backward compatibility constructor (deprecated)
         public frmUserDashboard()
         {
             InitializeComponent();
+            _sessionId = Guid.NewGuid().ToString();
         }
-
-        //Set a public static method to specify whether the form is purchase or sales
-        public static string transactionType;
         private void frmUserDashboard_FormClosed(object sender, FormClosedEventArgs e)
         {
             frmLogin login = new frmLogin();
@@ -29,7 +40,16 @@ namespace AnyStore
 
         private void frmUserDashboard_Load(object sender, EventArgs e)
         {
-            lblLoggedInUser.Text = frmLogin.loggedIn;
+            // Cloud-ready: Get username from session instead of static variable
+            var session = SessionManager.GetSession(_sessionId);
+            if (session != null)
+            {
+                lblLoggedInUser.Text = session.Username;
+            }
+            else
+            {
+                lblLoggedInUser.Text = "Guest";
+            }
         }
 
         private void dealerAndCustomerToolStripMenuItem_Click(object sender, EventArgs e)
@@ -40,20 +60,18 @@ namespace AnyStore
 
         private void purchaseToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            //set value on transactionType static method
-            transactionType = "Purchase";
-            frmPurchaseAndSales purchase = new frmPurchaseAndSales();
+            // Cloud-ready: Pass transaction type to form instead of using static variable
+            _transactionType = "Purchase";
+            frmPurchaseAndSales purchase = new frmPurchaseAndSales(_sessionId, _transactionType);
             purchase.Show();
-            
         }
 
         private void salesFormsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            //Set the value to transacionType method to sales
-            transactionType = "Sales";
-            frmPurchaseAndSales sales = new frmPurchaseAndSales();
+            // Cloud-ready: Pass transaction type to form instead of using static variable
+            _transactionType = "Sales";
+            frmPurchaseAndSales sales = new frmPurchaseAndSales(_sessionId, _transactionType);
             sales.Show();
-            
         }
 
         private void inventoryToolStripMenuItem_Click(object sender, EventArgs e)
